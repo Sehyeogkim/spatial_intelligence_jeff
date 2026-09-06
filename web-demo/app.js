@@ -1,7 +1,7 @@
 "use strict";
 
-const ARTIFACT_BASE = "../artifacts/corgi-cafe/nav";
-const ROLLOUT_VIDEO_URL = "../assets/world2work_table7.mp4";
+const ARTIFACT_BASE = "./data";
+const ROLLOUT_VIDEO_URL = "./assets/world2work-demo.mp4";
 const TARGET_ID = "table_7";
 const POLICY_LABEL = "tabular Q-learning high-level policy";
 const REPLAY_LABEL = "kinematic browser replay";
@@ -1064,7 +1064,7 @@ async function loadRolloutVideo() {
   const token = ++rolloutLoadToken;
   elements.rolloutPanel.classList.remove("is-ready");
   elements.rolloutFallbackTitle.textContent = "Checking for Isaac Sim rollout…";
-  elements.rolloutFallbackText.innerHTML = "Looking for <code>assets/world2work_table7.mp4</code>.";
+  elements.rolloutFallbackText.innerHTML = "Looking for <code>web-demo/assets/world2work-demo.mp4</code>.";
   setRolloutStatus("checking local MP4");
   elements.retryRolloutButton.disabled = true;
 
@@ -1078,14 +1078,14 @@ async function loadRolloutVideo() {
     await metadataReady;
     if (token !== rolloutLoadToken) return;
     elements.rolloutPanel.classList.add("is-ready");
-    setRolloutStatus("world2work_table7.mp4 · ready", "loaded");
+    setRolloutStatus("world2work-demo.mp4 · ready", "loaded");
   } catch (error) {
     if (token !== rolloutLoadToken) return;
     elements.rolloutVideo.pause();
     elements.rolloutVideo.removeAttribute("src");
     elements.rolloutVideo.load();
     elements.rolloutFallbackTitle.textContent = "Isaac Sim rollout is not available yet";
-    elements.rolloutFallbackText.innerHTML = "Place the rendered video at <code>assets/world2work_table7.mp4</code>, then retry. The kinematic browser replay above remains available.";
+    elements.rolloutFallbackText.innerHTML = "Place the rendered video at <code>web-demo/assets/world2work-demo.mp4</code>, then retry. The kinematic browser replay above remains available.";
     setRolloutStatus("local MP4 pending", "missing");
     console.info("Actual Isaac Sim rollout card is using its local-file fallback.", error);
   } finally {

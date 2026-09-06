@@ -194,6 +194,7 @@ def classify(normals: np.ndarray, area: np.ndarray, centroids: np.ndarray, param
         if ceiling_z is None:
             ceiling_z = top
 
+    params["_floor_mode"] = float(floor_z)
     rel = z - floor_z
     labels = np.full(len(z), CLASS_ORDER.index("other"), dtype=np.int8)
     tol = params["floor_tolerance"]
@@ -226,6 +227,159 @@ def classify(normals: np.ndarray, area: np.ndarray, centroids: np.ndarray, param
     labels[promote] = wall_idx
 
     return labels, {"floor_z": float(floor_z), "ceiling_z": float(ceiling_z), "promoted_wall_faces": len(promote), "outside_crop_faces": outside_count}
+
+
+def floor_analysis(labels: np.ndarray, area: np.ndarray, centroids: np.ndarray, normals: np.ndarray, params: dict) -> dict:
+    """Fit a plane to the floor faces and report how flat/level the floor is."""
+    idx = np.where(labels == CLASS_ORDER.index("floor"))[0]
+    if len(idx) < 3:
+        return {"face_count": int(len(idx)), "area_m2": 0.0, "fit": None}
+    pts = centroids[idx]
+    w = area[idx]
+    # weighted least squares z = a*x + b*y + c
+    A = np.column_stack([pts[:, 0], pts[:, 1], np.ones(len(pts))]) * np.sqrt(w)[:, None]
+    coef, *_ = np.linalg.lstsq(A, pts[:, 2] * np.sqrt(w), rcond=None)
+    a, b, c = (float(v) for v in coef)
+    residual = pts[:, 2] - (a * pts[:, 0] + b * pts[:, 1] + c)
+    tilt_deg = math.degrees(math.atan(math.hypot(a, b)))
+    z_median = float(np.median(pts[:, 2]))
+    order = np.argsort(pts[:, 2])
+    cum = np.cumsum(w[order])
+    z_wmedian = float(pts[order, 2][np.searchsorted(cum, cum[-1] / 2)])
+    inliers = np.abs(residual) <= 0.05
+    return {
+        "face_count": int(len(idx)),
+        "area_m2": round(float(w.sum()), 3),
+        "z_mode_m": round(float(params["_floor_mode"]), 4),
+        "z_median_m": round(z_median, 4),
+        "z_area_weighted_median_m": round(z_wmedian, 4),
+        "fit": {
+            "plane_z_at_origin_m": round(c, 4),
+            "slope_x": round(a, 5),
+            "slope_y": round(b, 5),
+            "tilt_deg": round(tilt_deg, 3),
+            "rms_residual_m": round(float(math.sqrt(np.average(residual ** 2, weights=w))), 4),
+            "inlier_fraction_5cm": round(float(np.average(inliers, weights=w)), 3),
+        },
+        "level_ok": tilt_deg <= params["max_floor_tilt_deg"],
+        "note": "z is measured in the current metric frame; ground_offset should put the floor at z=0",
+    }
+
+
+def _area_weighted_median(values: list[float], weights: list[float]) -> float | None:
+    if not values:
+        return None
+    v = np.asarray(values, dtype=np.float64)
+    w = np.asarray(weights, dtype=np.float64)
+    order = np.argsort(v)
+    cum = np.cumsum(w[order])
+    return float(v[order][np.searchsorted(cum, cum[-1] / 2)])
+
+
+def height_peak(z: np.ndarray, w: np.ndarray, lo: float, hi: float, bin_m: float = 0.04) -> tuple[float, float] | None:
+    """Area-weighted, 3-bin-smoothed histogram peak of surface heights in [lo, hi].
+
+    Returns (peak height, peak area per bin).  The peak is refined as the
+    weighted mean of samples within one bin of the best bin.
+    """
+    mask = (z >= lo) & (z <= hi) & (w > 0)
+    if mask.sum() < 3:
+        return None
+    edges = np.arange(lo, hi + bin_m, bin_m)
+    hist, _ = np.histogram(z[mask], bins=edges, weights=w[mask])
+    if len(hist) >= 3:
+        smooth = np.convolve(hist, np.array([0.25, 0.5, 0.25]), mode="same")
+    else:
+        smooth = hist
+    best = int(np.argmax(smooth))
+    if smooth[best] <= 0:
+        return None
+    centre = 0.5 * (edges[best] + edges[best + 1])
+    window = mask & (np.abs(z - centre) <= bin_m)
+    return float(np.average(z[window], weights=w[window])), float(hist[best])
+
+
+def calibrate_scale(tables: list[dict], seats: list[dict], floor_z: float, scale: float, ground_offset: float, params: dict,
+                    normals: np.ndarray, area: np.ndarray, centroids: np.ndarray) -> dict:
+    """Recommend a metric scale/ground offset from furniture heights above the floor.
+
+    World Labs' metric_scale_factor is an estimate.  Real cafe tables are
+    ~0.72-0.76 m tall and chair seats ~0.43-0.47 m.  The *peak* of the
+    horizontal-surface height histogram inside the crop (table-top peak in the
+    table band, seat peak in the seat band) is compared with those references.
+    A peak is used instead of the instance median because the median drifts
+    with the band edges: every re-scale pulls a different set of low clutter
+    into the table band, which made an iterative median estimator run away.
+    The area-weighted instance medians are still reported for comparison.
+    """
+    ref_table = params["reference_table_height_m"]
+    ref_seat = params["reference_seat_height_m"]
+    horizontal = np.abs(normals[:, 2]) >= math.cos(math.radians(params["horizontal_deg"]))
+    crop = params.get("crop_xy")
+    if crop:
+        xmin, xmax, ymin, ymax = crop
+        horizontal &= (centroids[:, 0] >= xmin) & (centroids[:, 0] <= xmax) & (centroids[:, 1] >= ymin) & (centroids[:, 1] <= ymax)
+    rel = centroids[horizontal, 2] - floor_z
+    weights = area[horizontal]
+    table_peak = height_peak(rel, weights, params["table_band"][0], params["table_band"][1])
+    seat_peak = height_peak(rel, weights, params["seat_band"][0], params["seat_band"][1])
+    table_h = table_peak[0] if table_peak else None
+    seat_h = seat_peak[0] if seat_peak else None
+    table_median = _area_weighted_median([t["height_z_m"] - floor_z for t in tables], [t["area_m2"] for t in tables])
+    seat_median = _area_weighted_median([t["height_z_m"] - floor_z for t in seats], [t["area_m2"] for t in seats])
+    estimates = []
+    if table_h and table_h > 0.2:
+        estimates.append((ref_table / table_h, table_peak[1], "table_top_peak"))
+    if seat_h and seat_h > 0.1:
+        estimates.append((ref_seat / seat_h, seat_peak[1], "seat_peak"))
+    if estimates:
+        factor = float(sum(f * w for f, w, _ in estimates) / sum(w for _, w, _ in estimates))
+        spread = max(f for f, _, _ in estimates) - min(f for f, _, _ in estimates)
+    else:
+        factor, spread = 1.0, 0.0
+    deadband = params["calibration_deadband"]
+    scale_changed = abs(factor - 1.0) >= deadband
+    new_scale = scale * factor if scale_changed else scale
+    # keep the raw floor at exactly z = 0 in the new frame:
+    # z = g - s*y  ->  y_floor = (g - floor_z)/s  ->  g' = s' * y_floor
+    raw_floor_y = (ground_offset - floor_z) / scale
+    new_ground = new_scale * raw_floor_y
+    ground_changed = abs(new_ground - ground_offset) >= params["floor_shift_deadband_m"]
+    tray = params.get("robot_tray_height_m")
+    return {
+        "schema_version": "world2work.marble-calibration.v1",
+        "method": "horizontal-surface height-histogram peaks (table band, seat band) vs reference heights, weighted by peak area; floor from area-weighted mode of horizontal faces",
+        "input": {"scale": scale, "ground_offset": ground_offset, "floor_z_m": round(floor_z, 4)},
+        "measured": {
+            "table_height_above_floor_m": round(table_h, 4) if table_h else None,
+            "seat_height_above_floor_m": round(seat_h, 4) if seat_h else None,
+            "table_instance_median_m": round(table_median, 4) if table_median else None,
+            "seat_instance_median_m": round(seat_median, 4) if seat_median else None,
+            "table_count": len(tables),
+            "seat_count": len(seats),
+        },
+        "reference": {"table_height_m": ref_table, "seat_height_m": ref_seat},
+        "estimates": [{"source": n, "factor": round(f, 4), "weight_area_m2": round(w, 3)} for f, w, n in estimates],
+        "factor": round(factor, 5),
+        "estimate_spread": round(spread, 4),
+        "consistent": spread <= params["calibration_max_spread"],
+        "deadband": deadband,
+        "applied": bool(scale_changed or ground_changed),
+        "scale": new_scale,
+        "ground_offset": new_ground,
+        "scale_changed": scale_changed,
+        "ground_changed": ground_changed,
+        "robot_check": (
+            {
+                "tray_height_m": tray,
+                "table_height_after_calibration_m": round(table_h * (new_scale / scale), 4) if table_h else None,
+                "tray_minus_table_m": round(tray - table_h * (new_scale / scale), 4) if table_h else None,
+                "note": "the Carter tray should sit at roughly table height so the cup can be handed over",
+            }
+            if tray is not None
+            else None
+        ),
+    }
 
 
 # --------------------------------------------------------------------------- #
@@ -448,6 +602,17 @@ def main() -> None:
     parser.add_argument("--crop", type=float, nargs=4, default=None, metavar=("XMIN", "XMAX", "YMIN", "YMAX"),
                         help="Metric XY crop; faces outside become class 'outside'. Default: initial_crop_xy_m from --grid-meta")
     parser.add_argument("--no-crop", action="store_true", help="Disable the crop even when grid_meta provides one")
+    parser.add_argument("--reference-table-height-m", type=float, default=0.74, help="Real-world table height used for scale calibration")
+    parser.add_argument("--reference-seat-height-m", type=float, default=0.45, help="Real-world chair seat height used for scale calibration")
+    parser.add_argument("--robot-tray-height-m", type=float, default=0.72, help="Carter tray height, reported against the calibrated table height")
+    parser.add_argument("--calibration-deadband", type=float, default=0.03,
+                        help="Ignore scale corrections smaller than this fraction (real table heights vary 0.72-0.76 m, i.e. ~3%)")
+    parser.add_argument("--floor-shift-deadband-m", type=float, default=0.01)
+    parser.add_argument("--calibration-max-spread", type=float, default=0.06, help="Table vs seat factor disagreement above this is flagged inconsistent")
+    parser.add_argument("--max-floor-tilt-deg", type=float, default=2.0)
+    parser.add_argument("--no-calibrate", action="store_true", help="Skip scale calibration entirely")
+    parser.add_argument("--no-apply-calibration", action="store_true",
+                        help="Write calibration.json but keep outputs in the input scale (marble_to_grid.py uses this to stay in one frame)")
     args = parser.parse_args()
 
     collider = Path(args.collider)
@@ -458,8 +623,6 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     raw, faces, info = load_mesh_arrays(collider)
-    metric = raw_to_metric(raw, scale, ground_offset)
-    normals, area, centroids = face_geometry(metric, faces)
 
     crop_xy = None if args.no_crop else args.crop
     if crop_xy is None and not args.no_crop and args.grid_meta and Path(args.grid_meta).is_file():
@@ -480,10 +643,48 @@ def main() -> None:
         "cluster_cell": args.cluster_cell,
         "cluster_gap_cells": args.cluster_gap_cells,
         "min_instance_area": args.min_instance_area,
+        "reference_table_height_m": args.reference_table_height_m,
+        "reference_seat_height_m": args.reference_seat_height_m,
+        "robot_tray_height_m": args.robot_tray_height_m,
+        "calibration_deadband": args.calibration_deadband,
+        "floor_shift_deadband_m": args.floor_shift_deadband_m,
+        "calibration_max_spread": args.calibration_max_spread,
+        "max_floor_tilt_deg": args.max_floor_tilt_deg,
     }
-    labels, levels = classify(normals, area, centroids, params)
-    tables, table_instance = build_instances(labels, "table_top", "table", area, centroids, metric, faces, params)
-    seats, _ = build_instances(labels, "seat", "seat", area, centroids, metric, faces, params)
+
+    def analyse(current_scale: float, current_ground: float) -> dict:
+        metric = raw_to_metric(raw, current_scale, current_ground)
+        normals, area, centroids = face_geometry(metric, faces)
+        labels, levels = classify(normals, area, centroids, params)
+        tables, table_instance = build_instances(labels, "table_top", "table", area, centroids, metric, faces, params)
+        seats, _ = build_instances(labels, "seat", "seat", area, centroids, metric, faces, params)
+        floor = floor_analysis(labels, area, centroids, normals, params)
+        return {"metric": metric, "normals": normals, "area": area, "centroids": centroids, "labels": labels,
+                "levels": levels, "tables": tables, "table_instance": table_instance, "seats": seats, "floor": floor}
+
+    result = analyse(scale, ground_offset)
+    calibration = None
+    input_transform = {"scale": scale, "ground_offset": ground_offset}
+    if not args.no_calibrate:
+        calibration = calibrate_scale(result["tables"], result["seats"], result["levels"]["floor_z"], scale, ground_offset, params,
+                                      result["normals"], result["area"], result["centroids"])
+        calibration["applied_to_outputs"] = False
+        if calibration["applied"] and not args.no_apply_calibration:
+            factor = calibration["scale"] / scale
+            scale, ground_offset = calibration["scale"], calibration["ground_offset"]
+            if params["crop_xy"]:
+                params["crop_xy"] = [v * factor for v in params["crop_xy"]]
+            transform_source = f"{transform_source} + calibration"
+            result = analyse(scale, ground_offset)
+            calibration["applied_to_outputs"] = True
+            calibration["floor_z_after_m"] = round(result["levels"]["floor_z"], 4)
+        (out_dir / "calibration.json").write_text(json.dumps(calibration, indent=2), encoding="utf-8")
+    metric, area, centroids = result["metric"], result["area"], result["centroids"]
+    labels, levels, tables, table_instance, seats = (
+        result["labels"], result["levels"], result["tables"], result["table_instance"], result["seats"]
+    )
+    if not result["floor"]["level_ok"]:
+        print(f"FLOOR_TILT_WARNING tilt={result['floor']['fit']['tilt_deg']} deg", file=sys.stderr)
 
     # Optional: relate detected tables to the navigation goal proxy from grid_meta.
     goal_match = None
@@ -550,8 +751,11 @@ def main() -> None:
         "output": {"frame": args.frame, "combined_glb": str(combined), "per_class_glb": per_class_files,
                    "triangle_labels_npy": str(out_dir / "triangle_labels.npy"), "preview_png": str(preview),
                    "label_index": {i: n for i, n in enumerate(CLASS_ORDER)}},
-        "parameters": params,
+        "parameters": {k: v for k, v in params.items() if not k.startswith("_")},
+        "input_transform": input_transform,
+        "calibration": calibration,
         "levels": levels,
+        "floor": result["floor"],
         "classes": class_summary,
         "nodes": node_summary,
         "tables": [strip(t) for t in tables],
@@ -571,7 +775,10 @@ def main() -> None:
         "collider": str(collider),
         "triangles": info["triangle_count"],
         "floor_z": round(levels["floor_z"], 3),
+        "floor_tilt_deg": result["floor"].get("fit", {}).get("tilt_deg") if result["floor"].get("fit") else None,
         "ceiling_z": round(levels["ceiling_z"], 3),
+        "transform": {"scale": scale, "ground_offset": ground_offset, "source": transform_source},
+        "calibration": {k: calibration[k] for k in ("factor", "applied", "applied_to_outputs", "consistent", "scale", "ground_offset")} if calibration else None,
         "crop_xy": params["crop_xy"],
         "classes": {k: v["triangles"] for k, v in class_summary.items()},
         "tables": [(t["name"], round(t["area_m2"], 2), t["centroid_xyz_m"]) for t in tables],

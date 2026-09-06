@@ -1,6 +1,36 @@
+# Secrets and machine-local configuration
 .env
 .env.*
 !.env.example
-artifacts/worldlabs-audit/
-artifacts/corgi-cafe/
-.tools/
+
+# Python and editor noise
+__pycache__/
+*.py[cod]
+.DS_Store
+.idea/
+.vscode/
+
+# Local agent and preview workspaces
+/.claude/
+/.codex-slide-work/
+/.tools/
+/.video_preview/
+/AGENTS.md
+
+# Generated worlds, simulator output, and render experiments
+/artifacts/
+/output/
+/assets/*
+!/assets/readme/
+!/assets/readme/**
+/config/video_*.json
+/scripts/render_demo_slide.mjs
+/scripts/runpod_webrtc_tunnel.py
+/scripts/udp_over_tcp_relay.py
+/world2work_carter_table7_demo_success.png
+
+# Large generated 3D formats should be published as release assets instead
+*.spz
+*.glb
+*.usd
+*.usda

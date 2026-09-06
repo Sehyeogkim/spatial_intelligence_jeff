@@ -1,39 +1,37 @@
-# World2Work browser demo
+# World2Work evaluation dashboard
 
-Dependency-free static dashboard for the World2Work navigation demo:
+This dependency-free dashboard packages the evidence needed to inspect the hackathon result:
 
-1. A user café photo is reconstructed as a World Labs Marble world.
-2. The Marble fused collider is converted to an occupancy grid.
-3. A **tabular Q-learning high-level policy** learns a route to `table_7`.
-4. The page renders the learned route as a **kinematic browser replay** of Nova Carter carrying a tray-fixed coffee payload.
-
-The browser replay is not presented as rigid-body physics. A separate **Actual Isaac Sim rollout (Nova Carter)** card loads `assets/world2work_table7.mp4` when that rendered video is present. If it is absent or invalid, the card shows a non-broken pending state with a retry action.
+- the Marble-derived occupancy grid and learned route;
+- the 4,000-episode learning curve and value heatmap;
+- the held-out random-versus-trained evaluation;
+- a kinematic route replay; and
+- the recorded Isaac Sim Nova Carter rollout.
 
 ## Run
 
-Serve the repository root so the page can read local artifacts:
+From the repository root:
 
 ```bash
-cd /Users/jeff/project/spatial_intelligence_jeff
-python3 -m http.server 4173
+make demo
 ```
 
-Open <http://localhost:4173/web-demo/>.
+Then open <http://127.0.0.1:4173/web-demo/>.
 
-## Local artifact contract
+The dashboard is self-contained. Its curated JSON inputs live in `web-demo/data/`, and its public media lives in `web-demo/assets/`; it does not require private World Labs exports or a running Isaac Sim instance.
 
-The page loads these files from `artifacts/corgi-cafe/nav/`:
+## Data contract
 
-- `occupancy_grid.json`
-- `grid_meta.json`
-- `learning_curve.json`
-- `policy_table_7.json`
-- `route_table_7.json`
-- `evaluation_summary.json`
+| File | Purpose |
+|---|---|
+| `occupancy_grid.json` | Marble-derived navigation grid |
+| `grid_meta.json` | Coordinate transform, targets, and map metadata |
+| `learning_curve.json` | Aggregate training history |
+| `policy_table_7.json` | Learned tabular policy |
+| `route_table_7.json` | Exported Carter waypoints |
+| `evaluation_summary.json` | Held-out policy comparison |
 
-The simulator video lives outside that data contract at `assets/world2work_table7.mp4`.
-
-Missing navigation or training artifacts use an explicitly labelled visual preview. Missing evaluation data never invents metric values: Success Rate, Collision Rate, Path Efficiency, and Untrained/Trained results remain `—` until `evaluation_summary.json` exists.
+Missing data never produces invented metrics. The UI labels fallback previews explicitly and leaves unavailable measurements blank.
 
 ## Console hooks
 

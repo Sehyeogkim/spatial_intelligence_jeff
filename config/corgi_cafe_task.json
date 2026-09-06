@@ -67,7 +67,8 @@
           0.75
         ]
       },
-      "note": "floor is excluded from collision on purpose: the robot drives on /World/defaultGroundPlane and a second surface at z~0 makes the wheels jitter."
+      "note": "floor is excluded from collision on purpose: the robot drives on /World/defaultGroundPlane and a second surface at z~0 makes the wheels jitter.",
+      "calibration_json": "artifacts/corgi-cafe/semantic/calibration.json"
     },
     "use_marble_as": "static_visual_context",
     "physics_surface": "flat_ground_plus_optional_collision_proxies",
@@ -79,10 +80,14 @@
         0.0,
         0.0
       ],
-      "metric_scale_factor": 2.0523,
-      "ground_plane_offset_m": 1.6712,
-      "visual_z_bias_m": -0.32,
-      "formula": "(x,y,z)_marble -> (s*x, s*z, ground_plane_offset - s*y)"
+      "metric_scale_factor": 2.1309,
+      "ground_plane_offset_m": 1.7245,
+      "visual_z_bias_m": 0.0,
+      "formula": "(x,y,z)_marble -> (s*x, s*z, ground_plane_offset - s*y)",
+      "world_metadata_scale_factor": 2.0523,
+      "world_metadata_ground_offset_m": 1.6712,
+      "scale_note": "Calibrated by scripts/marble_to_grid.py from table-top (0.74 m) and seat (0.45 m) height peaks; grid_meta.json transform is authoritative at runtime, these values are the fallback.",
+      "visual_z_bias_note": "Was -0.32 before the floor was calibrated to z=0; the Marble floor now coincides with /World/defaultGroundPlane, so no visual shift is needed."
     }
   },
   "robot": {

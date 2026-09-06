@@ -1,0 +1,6 @@
+# Local geometry, training, and evaluation tools
+numpy>=1.26
+Pillow>=10.0
+scipy>=1.11
+trimesh>=4.0
+websockets>=12.0

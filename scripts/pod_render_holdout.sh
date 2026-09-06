@@ -7,7 +7,7 @@
 #         support scp, so files are streamed through ssh.
 set -euo pipefail
 
-POD="${POD:-rmw4ikd9aespj0-644114fe@ssh.runpod.io}"
+POD="${POD:?Set POD to the RunPod SSH endpoint}"
 REMOTE_ROOT="${REMOTE_ROOT:-/isaac-sim/world2work}"
 PY="${PY:-/isaac-sim/python.sh}"
 LOCAL_ROOT="$(cd "$(dirname "$0")/.." && pwd)"

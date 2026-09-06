@@ -1947,8 +1947,12 @@ def run_isaac(
                 sim_robot_prim = stage.GetPrimAtPath(robot_prim_path)
                 if sim_robot_prim and sim_robot_prim.IsValid():
                     _UsdGeom.Imageable(sim_robot_prim).MakeInvisible()
-                clone_path = "/World/CarterVisual"
-                stage_utils.add_reference_to_stage(robot_asset, clone_path)
+                # Author all replay xform ops on a fresh parent Xform: the asset's
+                # own root already carries xformOp:scale with a different precision,
+                # and AddScaleOp on it raises inside USD.
+                clone_path = "/World/CarterVisualRoot"
+                _UsdGeom.Xform.Define(stage, clone_path)
+                stage_utils.add_reference_to_stage(robot_asset, clone_path + "/CarterVisual")
                 for _ in range(30):
                     simulation_app.update()
                 clone_prim = stage.GetPrimAtPath(clone_path)
@@ -1958,6 +1962,55 @@ def run_isaac(
                 clone_xformable.ClearXformOpOrder()
                 clone_translate_op = clone_xformable.AddTranslateOp()
                 clone_rotate_op = clone_xformable.AddRotateZOp()
+                # Visual-only presentation knobs for the demo shot.
+                _vcfg = config.get("video", {})
+                robot_visual_scale = float(_vcfg.get("robot_visual_scale", 1.0))
+                clone_xformable.AddScaleOp().Set(
+                    _Gf.Vec3f(robot_visual_scale, robot_visual_scale, robot_visual_scale)
+                )
+                replay_config = config
+                if robot_visual_scale != 1.0:
+                    import copy as _copy
+
+                    replay_config = _copy.deepcopy(config)
+                    for key in ("tray", "cup"):
+                        replay_config["payload"][key]["offset_xyz_m"] = [
+                            float(v) * robot_visual_scale
+                            for v in config["payload"][key]["offset_xyz_m"]
+                        ]
+                    for prim_obj in (tray_prim, cup_prim):
+                        try:
+                            _UsdGeom.XformCommonAPI(prim_obj).SetScale(
+                                _Gf.Vec3f(robot_visual_scale, robot_visual_scale, robot_visual_scale)
+                            )
+                        except Exception as scale_exc:
+                            print(f"PAYLOAD_SCALE_WARN {scale_exc}", flush=True)
+                if _vcfg.get("table_prop"):
+                    # A simple café table at the delivery target so "table 7" is an object.
+                    table_scale = float(_vcfg.get("table_prop_scale", robot_visual_scale))
+                    table_positions = [(float(route.target_xy[0]), float(route.target_xy[1]))]
+                    table_positions += [(float(p[0]), float(p[1])) for p in _vcfg.get("table_prop_extra_xy", [])]
+                    for t_index, (tx, ty) in enumerate(table_positions):
+                        root = f"/World/TableProp{t_index}"
+                        top = _UsdGeom.Cylinder.Define(stage, root + "/Top")
+                        top.CreateRadiusAttr(0.45 * table_scale)
+                        top.CreateHeightAttr(0.04 * table_scale)
+                        top.CreateAxisAttr("Z")
+                        top.CreateDisplayColorAttr([_Gf.Vec3f(0.55, 0.33, 0.16)])
+                        _UsdGeom.XformCommonAPI(top).SetTranslate(_Gf.Vec3d(tx, ty, 0.72 * table_scale))
+                        leg = _UsdGeom.Cylinder.Define(stage, root + "/Leg")
+                        leg.CreateRadiusAttr(0.04 * table_scale)
+                        leg.CreateHeightAttr(0.70 * table_scale)
+                        leg.CreateAxisAttr("Z")
+                        leg.CreateDisplayColorAttr([_Gf.Vec3f(0.2, 0.2, 0.22)])
+                        _UsdGeom.XformCommonAPI(leg).SetTranslate(_Gf.Vec3d(tx, ty, 0.35 * table_scale))
+                        base = _UsdGeom.Cylinder.Define(stage, root + "/Base")
+                        base.CreateRadiusAttr(0.25 * table_scale)
+                        base.CreateHeightAttr(0.02 * table_scale)
+                        base.CreateAxisAttr("Z")
+                        base.CreateDisplayColorAttr([_Gf.Vec3f(0.2, 0.2, 0.22)])
+                        _UsdGeom.XformCommonAPI(base).SetTranslate(_Gf.Vec3d(tx, ty, 0.01 * table_scale))
+                    print(f"TABLE_PROP_ADDED count={len(table_positions)}", flush=True)
                 print(
                     "VIDEO_REPLAY_CLONE "
                     + json.dumps({"clone": clone_path, "valid": bool(clone_prim and clone_prim.IsValid())}),
@@ -1979,7 +2032,11 @@ def run_isaac(
                     )
                     replay_yaw = wxyz_to_yaw(replay_orientation_array)
                     clone_translate_op.Set(
-                        _Gf.Vec3d(*[float(v) for v in replay_position_array[:3]])
+                        _Gf.Vec3d(
+                            float(replay_position_array[0]),
+                            float(replay_position_array[1]),
+                            float(replay_position_array[2]) * robot_visual_scale,
+                        )
                     )
                     clone_rotate_op.Set(float(math.degrees(replay_yaw)))
                     sync_payload(
@@ -1987,7 +2044,7 @@ def run_isaac(
                         cup_prim,
                         replay_position_array,
                         replay_yaw,
-                        config,
+                        replay_config,
                     )
                     simulation_app.update()
                     if video_recorder.frame_count + 1 >= len(video_pose_samples):

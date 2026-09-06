@@ -6,7 +6,7 @@
 #   bash scripts/pod_ssh.sh 'nvidia-smi -L'
 #   bash scripts/pod_ssh.sh 'cd /isaac-sim/world2work && ls output/isaac'
 set -uo pipefail
-POD="${POD:-rmw4ikd9aespj0-644114fe@ssh.runpod.io}"
+POD="${POD:?Set POD to the RunPod SSH endpoint}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_runpod}"
 MARK="__POD_CMD_${RANDOM}__"
 printf '%s\necho %s_START; %s; echo %s_END; exit\n' "stty -echo 2>/dev/null" "$MARK" "$1" "$MARK" \

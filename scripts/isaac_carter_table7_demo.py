@@ -54,9 +54,25 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("/isaac-sim/output/world2work_carter_table7_demo.usda"),
     )
-    parser.add_argument("--metric-scale", type=float, default=2.052333354949951)
-    parser.add_argument("--ground-offset", type=float, default=1.671196460723877)
-    parser.add_argument("--visual-z-bias", type=float, default=-0.32)
+    parser.add_argument(
+        "--grid-meta",
+        type=Path,
+        default=Path("/workspace/artifacts/corgi-cafe/nav/grid_meta.json"),
+        help="marble_to_grid.py output; its calibrated transform is the default scale/ground offset",
+    )
+    parser.add_argument(
+        "--metric-scale",
+        type=float,
+        default=None,
+        help="Override; default comes from --grid-meta, else the World Labs metadata value 2.052333",
+    )
+    parser.add_argument("--ground-offset", type=float, default=None)
+    parser.add_argument(
+        "--visual-z-bias",
+        type=float,
+        default=0.0,
+        help="Extra Z shift of the Marble visual. 0 keeps the calibrated floor at z=0.",
+    )
     parser.add_argument("--dome-yaw-deg", type=float, default=0.0)
     parser.add_argument(
         "--preview-scale-sheet",
@@ -92,11 +108,11 @@ def route_length_m(sample_count: int = 400) -> float:
 def follow_camera_pose(position, yaw: float):
     """Return a shoulder-follow camera in the same metric coordinate frame."""
 
-    distance = 2.75
+    distance = 3.80
     # Camera sits to Carter's left, keeping the right-side TABLE 7 readable.
-    lateral = 1.05
-    height = 1.52
-    look_ahead = 0.72
+    lateral = 0.90
+    height = 1.40
+    look_ahead = 0.12
     cos_yaw = math.cos(yaw)
     sin_yaw = math.sin(yaw)
     camera_position = (
@@ -107,7 +123,7 @@ def follow_camera_pose(position, yaw: float):
     look_at = (
         position[0] + look_ahead * cos_yaw,
         position[1] + look_ahead * sin_yaw,
-        position[2] + 0.42,
+        position[2] + 0.72,
     )
     return camera_position, look_at
 
@@ -163,14 +179,16 @@ def add_metric_proxy_scene(stage) -> None:
     from pxr import Gf, UsdGeom
 
     # Robust collider floor bounds (1st-99th percentile) from the Marble mesh.
-    floor_center = (0.89068, 3.40078, -0.03)
-    floor_size = (9.87846, 14.25089, 0.05)
+    # Render padding extends beyond the measured bounds so no rectangular edge
+    # enters the follow shot.  Board spacing remains metric.
+    floor_center = (3.90, 3.40, -0.03)
+    floor_size = (25.0, 30.0, 0.05)
     add_cube(
         stage,
         "/World/MetricForeground/FloorBase",
         floor_center,
         floor_size,
-        (0.19, 0.085, 0.030),
+        (0.060, 0.024, 0.008),
     )
 
     # Alternating 0.44 m boards give the eye a real, repeated metric cue as the
@@ -180,9 +198,9 @@ def add_metric_proxy_scene(stage) -> None:
     board_count = int(math.ceil(floor_size[1] / nominal_board_length))
     board_length = floor_size[1] / board_count
     board_colors = (
-        (0.43, 0.235, 0.095),
-        (0.50, 0.285, 0.120),
-        (0.37, 0.185, 0.068),
+        (0.18, 0.080, 0.024),
+        (0.23, 0.105, 0.034),
+        (0.145, 0.060, 0.018),
     )
     for index in range(board_count):
         board_y = y_min + (index + 0.5) * board_length
@@ -196,13 +214,17 @@ def add_metric_proxy_scene(stage) -> None:
 
     # Sparse longitudinal joints prevent the floor from reading as a flat set
     # of stripes without turning it into a simulator grid.
-    for index, x_value in enumerate((-2.44, -0.22, 2.00, 4.22)):
+    seam_spacing = 2.22
+    seam_count = int(math.ceil(floor_size[0] / seam_spacing))
+    x_min = floor_center[0] - floor_size[0] / 2.0
+    for index in range(seam_count):
+        x_value = x_min + (index + 0.5) * floor_size[0] / seam_count
         seam = add_cube(
             stage,
             f"/World/MetricForeground/LongJoint_{index}",
             (x_value, floor_center[1], 0.0015),
             (0.012, floor_size[1] - 0.03, 0.003),
-            (0.12, 0.050, 0.018),
+            (0.035, 0.012, 0.004),
         )
         seam.CreateDisplayOpacityAttr([0.55])
 
@@ -217,7 +239,7 @@ def add_table7_visual(stage) -> None:
     from pxr import Gf, UsdGeom
 
     table_x, table_y = TABLE7_CENTER_XY
-    orange = (0.96, 0.36, 0.055)
+    orange = (0.44, 0.12, 0.018)
     dark_wood = (0.24, 0.105, 0.035)
     green = (0.08, 0.92, 0.48)
 
@@ -227,7 +249,8 @@ def add_table7_visual(stage) -> None:
     top_thickness = 0.05
     top_z = TABLE7_HEIGHT_M - top_thickness / 2.0
 
-    # Metadata-grounded cafe table: 0.842 x 0.972 x 0.7025 m.  It sits just
+    # Metadata-grounded cafe table: 0.842 x 0.972 m with a canonical 0.72 m
+    # tabletop height.  It sits just
     # beyond the route endpoint so Carter visibly parks without intersecting it.
     add_cube(
         stage,
@@ -312,7 +335,7 @@ def add_service_kit(stage) -> None:
         "/World/CarterMotion/ServiceKit/Tray",
         (0.0, 0.0, 0.405),
         (0.36, 0.30, 0.025),
-        (0.96, 0.36, 0.055),
+        (0.52, 0.15, 0.022),
     )
     cup = UsdGeom.Cylinder.Define(stage, "/World/CarterMotion/ServiceKit/Coffee")
     cup.CreateAxisAttr("Z")
@@ -383,8 +406,33 @@ def frame_progress(index: int) -> float:
     return linear * linear * (3.0 - 2.0 * linear)
 
 
+WORLD_LABS_METADATA_SCALE = 2.052333354949951
+WORLD_LABS_METADATA_GROUND_OFFSET = 1.671196460723877
+
+
+def resolve_marble_transform(args) -> str:
+    """Fill args.metric_scale / args.ground_offset from grid_meta unless given."""
+    if args.metric_scale is not None and args.ground_offset is not None:
+        return "cli"
+    if args.grid_meta.is_file():
+        transform = json.loads(args.grid_meta.read_text(encoding="utf-8")).get("transform", {})
+        if "scale" in transform and "ground_offset" in transform:
+            args.metric_scale = float(transform["scale"])
+            args.ground_offset = float(transform["ground_offset"])
+            return str(args.grid_meta)
+    args.metric_scale = WORLD_LABS_METADATA_SCALE
+    args.ground_offset = WORLD_LABS_METADATA_GROUND_OFFSET
+    return "world_labs_metadata_default"
+
+
 def main() -> None:
     args = parse_args()
+    transform_source = resolve_marble_transform(args)
+    print(
+        f"MARBLE_TRANSFORM scale={args.metric_scale:.6f} "
+        f"ground_offset={args.ground_offset:.6f} source={transform_source}",
+        flush=True,
+    )
     if not args.panorama.is_file():
         raise FileNotFoundError(f"World Labs panorama not found: {args.panorama}")
     if not args.collider_usd.is_file():
@@ -438,6 +486,11 @@ def main() -> None:
         )
         geometry = UsdGeom.Xform.Define(stage, "/World/WorldLabsMarble/Geometry")
         geometry.GetPrim().GetReferences().AddReference(str(args.collider_usd))
+        # Keep geometry provenance in the stage, but hide the large untextured
+        # collider before the first RTX update so it does not build a needless
+        # beauty-render acceleration structure.
+        UsdGeom.Imageable(cafe_root.GetPrim()).MakeInvisible()
+        print("STAGE_READY marble_collider_hidden=true", flush=True)
 
         assets_root = get_assets_root_path()
         if not assets_root:
@@ -478,13 +531,17 @@ def main() -> None:
         UsdGeom.XformCommonAPI(key).SetRotate(Gf.Vec3f(-35.0, 25.0, 20.0))
 
         carter_prim_count = 0
-        for frame in range(600):
+        for frame in range(240):
             simulation_app.update()
             if frame % 10 == 0:
                 carter_prim_count = sum(
                     1
                     for prim in stage.Traverse()
                     if str(prim.GetPath()).startswith("/World/CarterMotion/NovaCarter")
+                )
+                print(
+                    f"ASSET_LOAD frame={frame} carter_prims={carter_prim_count}",
+                    flush=True,
                 )
                 if frame >= 45 and carter_prim_count >= 5:
                     break
@@ -514,7 +571,7 @@ def main() -> None:
             position=initial_camera_position,
             look_at=initial_look_at,
             look_at_up_axis=(0.0, 0.0, 1.0),
-            focal_length=27.0,
+            focal_length=21.0,
             clipping_range=(0.05, 100.0),
             parent="/World",
             name="World2WorkCarterCamera",
@@ -687,8 +744,12 @@ def main() -> None:
             "table7_visual_size_m": [*TABLE7_SIZE_XY, TABLE7_HEIGHT_M],
             "table7_visual_physics": "visual_only_no_collision",
             "table7_provenance_note": "presentation proxy; dimensions grounded in a Marble-segmented cafe table",
-            "metric_foreground_floor_center_m": [0.89068, 3.40078, -0.03],
-            "metric_foreground_floor_size_m": [9.87846, 14.25089, 0.05],
+            "marble_floor_robust_bounds_m": {
+                "x": [-4.04855, 5.82991],
+                "y": [-3.72466, 10.52623],
+            },
+            "metric_foreground_render_center_m": [3.90, 3.40, -0.03],
+            "metric_foreground_render_size_m": [25.0, 30.0, 0.05],
             "success": captured == total_frames and args.output.stat().st_size > 1024,
         }
         args.output.with_suffix(".json").write_text(

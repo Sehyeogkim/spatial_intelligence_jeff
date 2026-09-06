@@ -51,29 +51,29 @@
           <figure class="source-card">
             <img
               id="sourcePhoto"
-              src="../artifacts/corgi-cafe/source-google-maps.jpg"
-              alt="Original café reference photograph"
+              src="./assets/world2work-cover.png"
+              alt="World2Work project concept showing a café becoming a robot simulation"
             />
             <figcaption>
-              <span><b>01</b> USER CAPTURE</span>
-              <strong>Source photo</strong>
+              <span><b>01</b> PROJECT VISION</span>
+              <strong>World → robot experience</strong>
             </figcaption>
           </figure>
 
           <div class="source-arrow" aria-hidden="true">
-            <span>WORLD LABS</span>
+            <span>WORLD2WORK</span>
             <i></i>
           </div>
 
           <figure class="source-card source-card-wide">
             <img
               id="marblePano"
-              src="../artifacts/corgi-cafe/pano.png"
-              alt="Panorama reconstructed by World Labs Marble"
+              src="./assets/world2work-success.png"
+              alt="Validated Nova Carter rollout in Isaac Sim"
             />
             <figcaption>
-              <span><b>02</b> MARBLE OUTPUT</span>
-              <strong>Generated world panorama</strong>
+              <span><b>02</b> VALIDATED OUTPUT</span>
+              <strong>Isaac Sim Carter rollout</strong>
             </figcaption>
           </figure>
 
@@ -181,7 +181,7 @@
                   <span class="rollout-fallback-icon" aria-hidden="true">▶</span>
                   <div>
                     <strong id="rolloutFallbackTitle">Checking for Isaac Sim rollout…</strong>
-                    <p id="rolloutFallbackText">Looking for <code>assets/world2work_table7.mp4</code>.</p>
+                    <p id="rolloutFallbackText">Looking for <code>web-demo/assets/world2work-demo.mp4</code>.</p>
                   </div>
                   <button class="quiet-button" id="retryRolloutButton" type="button">Retry local MP4</button>
                 </div>
@@ -195,7 +195,7 @@
                 <span><i class="sim-dot"></i><b>Actual simulator footage</b></span>
                 <span class="provenance-divider"></span>
                 <p>Separate from the <b>kinematic browser replay</b> above.</p>
-                <code>../assets/world2work_table7.mp4</code>
+                <code>./assets/world2work-demo.mp4</code>
               </div>
             </article>
 
@@ -245,7 +245,7 @@
 
             <section class="metrics-grid primary-metrics" aria-label="Held-out evaluation metrics">
               <div><span>Success Rate</span><strong id="successMetric">—</strong><small>held-out test</small></div>
-              <div><span>Collision Rate</span><strong id="collisionMetric">—</strong><small>blocked actions / actions</small></div>
+              <div><span>Invalid Move Rate</span><strong id="collisionMetric">—</strong><small>blocked actions / actions</small></div>
               <div><span>Path Efficiency</span><strong id="efficiencyMetric">—</strong><small>shortest / actual</small></div>
             </section>
 

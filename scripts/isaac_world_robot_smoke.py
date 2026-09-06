@@ -33,9 +33,20 @@ def parse_args() -> argparse.Namespace:
         default=Path("/workspace/artifacts/corgi-cafe/pano.png"),
     )
     parser.add_argument("--converted-usd", type=Path, default=None)
+    parser.add_argument(
+        "--grid-meta",
+        type=Path,
+        default=Path("/workspace/artifacts/corgi-cafe/nav/grid_meta.json"),
+        help="marble_to_grid.py output; its calibrated transform wins over world.json",
+    )
     parser.add_argument("--metric-scale", type=float, default=None)
     parser.add_argument("--ground-offset", type=float, default=None)
-    parser.add_argument("--visual-z-bias", type=float, default=-0.32)
+    parser.add_argument(
+        "--visual-z-bias",
+        type=float,
+        default=0.0,
+        help="Extra Z shift of the Marble visual. 0 keeps the calibrated floor at z=0.",
+    )
     parser.add_argument("--enable-collider", action="store_true")
     parser.add_argument(
         "--output",
@@ -55,12 +66,24 @@ def read_world_transform(path: Path) -> tuple[float, float]:
     )
 
 
+def read_grid_meta_transform(path: Path) -> tuple[float, float] | None:
+    """Calibrated scale/ground offset written by marble_to_grid.py, if present."""
+    if not path.is_file():
+        return None
+    transform = json.loads(path.read_text(encoding="utf-8")).get("transform", {})
+    if "scale" not in transform or "ground_offset" not in transform:
+        return None
+    return float(transform["scale"]), float(transform["ground_offset"])
+
+
 def main() -> None:
     args = parse_args()
     if not args.collider.is_file():
         raise FileNotFoundError(f"World Labs collider not found: {args.collider}")
-    if not args.world_json.is_file() and (
-        args.metric_scale is None or args.ground_offset is None
+    if (
+        not args.world_json.is_file()
+        and read_grid_meta_transform(args.grid_meta) is None
+        and (args.metric_scale is None or args.ground_offset is None)
     ):
         raise FileNotFoundError(
             "World metadata is missing; pass both --metric-scale and "
@@ -131,11 +154,21 @@ def main() -> None:
         if not converted_usd.is_file():
             simulation_app.run_coroutine(convert_collider())
 
-        if args.world_json.is_file():
-            metric_scale, ground_offset = read_world_transform(args.world_json)
+        calibrated = read_grid_meta_transform(args.grid_meta)
+        if args.metric_scale is not None and args.ground_offset is not None:
+            metric_scale, ground_offset = args.metric_scale, args.ground_offset
+            transform_source = "cli"
+        elif calibrated is not None:
+            metric_scale, ground_offset = calibrated
+            transform_source = str(args.grid_meta)
         else:
-            metric_scale = args.metric_scale
-            ground_offset = args.ground_offset
+            metric_scale, ground_offset = read_world_transform(args.world_json)
+            transform_source = str(args.world_json)
+        print(
+            f"MARBLE_TRANSFORM scale={metric_scale:.6f} ground_offset={ground_offset:.6f} "
+            f"source={transform_source}",
+            flush=True,
+        )
 
         # World Labs collider coordinates are transformed into Isaac's Z-up frame:
         # (x, y, z)_raw -> (s*x, s*z, ground_offset - s*y).

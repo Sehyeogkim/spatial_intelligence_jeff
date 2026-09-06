@@ -5,7 +5,7 @@
 #
 #   bash scripts/pod_push.sh local/file.py /isaac-sim/world2work/scripts/file.py
 set -euo pipefail
-POD="${POD:-rmw4ikd9aespj0-644114fe@ssh.runpod.io}"
+POD="${POD:?Set POD to the RunPod SSH endpoint}"
 KEY="${KEY:-$HOME/.ssh/id_ed25519_runpod}"
 LOCAL="$1"; REMOTE="$2"
 {

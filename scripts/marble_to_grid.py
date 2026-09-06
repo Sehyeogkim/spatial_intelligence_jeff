@@ -361,23 +361,68 @@ def component_boxes(mask: list[list[bool]], origin: tuple[float, float], cell: f
     return boxes[:limit]
 
 
+def run_segmentation(semantics_path: Path, collider: Path, scale: float, ground_offset: float, crop: Sequence[float] | None, apply_calibration: bool) -> None:
+    script = Path(__file__).resolve().with_name("segment_marble_collider.py")
+    command = [
+        sys.executable, str(script),
+        "--collider", str(collider),
+        "--scale", str(scale), "--ground-offset", str(ground_offset),
+        "--out-dir", str(semantics_path.parent),
+    ]
+    command += ["--crop", *[str(v) for v in crop]] if crop else ["--no-crop"]
+    if not apply_calibration:
+        command.append("--no-apply-calibration")
+    print(f"SEGMENTING {' '.join(command[1:])}", file=sys.stderr)
+    subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+
+
 def ensure_semantics(semantics_path: Path, collider: Path, scale: float, ground_offset: float, crop: Sequence[float], auto: bool) -> dict | None:
-    """Load semantics.json, running segment_marble_collider.py first if needed."""
-    stale = not semantics_path.is_file() or semantics_path.stat().st_mtime_ns < collider.stat().st_mtime_ns
-    if stale and auto:
-        script = Path(__file__).resolve().with_name("segment_marble_collider.py")
-        command = [
-            sys.executable, str(script),
-            "--collider", str(collider),
-            "--scale", str(scale), "--ground-offset", str(ground_offset),
-            "--crop", *[str(v) for v in crop],
-            "--out-dir", str(semantics_path.parent),
-        ]
-        print(f"SEGMENTING {' '.join(command[1:])}", file=sys.stderr)
-        subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
-    if not semantics_path.is_file():
-        return None
-    return json.loads(semantics_path.read_text(encoding="utf-8"))
+    """Load semantics.json for exactly this transform + crop, re-segmenting if needed."""
+    def matches(data: dict) -> bool:
+        transform = data.get("transform", {})
+        if abs(float(transform.get("scale", -1)) - scale) > 1e-6 or abs(float(transform.get("ground_offset", 1e9)) - ground_offset) > 1e-4:
+            return False
+        recorded = data.get("parameters", {}).get("crop_xy")
+        return bool(recorded) and all(abs(float(a) - float(b)) < 1e-3 for a, b in zip(recorded, crop))
+
+    data = None
+    if semantics_path.is_file() and semantics_path.stat().st_mtime_ns >= collider.stat().st_mtime_ns:
+        data = json.loads(semantics_path.read_text(encoding="utf-8"))
+        if not matches(data):
+            data = None
+    if data is None and auto:
+        # Outputs must stay in the grid's frame, so calibration is recorded but not applied here.
+        run_segmentation(semantics_path, collider, scale, ground_offset, crop, apply_calibration=False)
+        data = json.loads(semantics_path.read_text(encoding="utf-8"))
+        calibration = data.get("calibration") or {}
+        if calibration.get("scale_changed"):
+            print(f"CALIBRATION_STEP factor={calibration.get('factor')} -> scale={calibration.get('scale')}", file=sys.stderr)
+    return data
+
+
+def resolve_metric_transform(world_path: Path, collider: Path, calibration_path: Path | None, semantics_path: Path, auto_segment: bool) -> tuple[float, float, dict]:
+    """World Labs metadata scale, replaced by the furniture-height calibration when available."""
+    base_scale, base_ground = load_world_scale(world_path)
+    info = {"source": "world.json semantics_metadata", "base_scale": base_scale, "base_ground_offset": base_ground, "calibration": None}
+    if calibration_path is None:
+        return base_scale, base_ground, info
+    if not calibration_path.is_file():
+        return base_scale, base_ground, info
+    calibration = json.loads(calibration_path.read_text(encoding="utf-8"))
+    scale = float(calibration["scale"])
+    ground = float(calibration["ground_offset"])
+    info.update({
+        "source": os.path.relpath(calibration_path),
+        "calibration": {
+            "factor_vs_input": calibration.get("factor"),
+            "input_scale": calibration.get("input", {}).get("scale"),
+            "measured": calibration.get("measured"),
+            "reference": calibration.get("reference"),
+            "consistent": calibration.get("consistent"),
+            "robot_check": calibration.get("robot_check"),
+        },
+    })
+    return scale, ground, info
 
 
 def _bbox_distance(x: float, y: float, box: Sequence[float]) -> float:
@@ -487,32 +532,76 @@ def main() -> None:
     parser.add_argument("--demo-table", default="auto", help="detected table instance (e.g. table_22) that --demo-target should alias; auto = longest capped demo route")
     parser.add_argument("--approach-max-m", type=float, default=1.2, help="max gap between an approach cell centre and the table footprint")
     parser.add_argument("--max-demo-steps", type=int, default=42)
+    parser.add_argument("--calibration", default="artifacts/corgi-cafe/semantic/calibration.json", help="scale/ground calibration written by segment_marble_collider.py")
+    parser.add_argument("--ignore-calibration", action="store_true", help="use the World Labs metadata scale only")
+    parser.add_argument("--calibration-iterations", type=int, default=3, help="max segment/calibrate/re-crop rounds")
     args = parser.parse_args()
 
     collider = Path(args.collider)
     world_path = Path(args.world)
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    scale, ground_offset = load_world_scale(world_path)
-    triangles, mesh_info = load_triangles(collider, scale, ground_offset)
-
-    floor_z = 0.0  # metadata transform explicitly maps the reconstructed ground here
+    scale, ground_offset, transform_info = resolve_metric_transform(
+        world_path, collider,
+        None if (args.ignore_calibration or args.no_semantic_targets) else Path(args.calibration),
+        Path(args.semantics), not args.no_auto_segment,
+    )
+    floor_z = 0.0  # the (calibrated) ground offset maps the reconstructed floor here
     floor_band = (-0.12, 0.18)
     obstacle_band = (0.12, 1.35)
-    floor_vertices = [v for tri in triangles for v in tri if floor_band[0] <= v[2] <= floor_band[1]]
-    if len(floor_vertices) < 30:
-        floor_vertices = [v for tri in triangles for v in tri]
-    if args.crop:
-        xmin, xmax, ymin, ymax = args.crop
-        crop_source = "manual_cli_crop"
-    else:
-        xs = [v[0] for v in floor_vertices]
-        ys = [v[1] for v in floor_vertices]
-        xmin, xmax = quantile(xs, 0.01), quantile(xs, 0.99)
-        ymin, ymax = quantile(ys, 0.01), quantile(ys, 0.99)
-        crop_source = "collider_floor_vertex_q01_q99"
-    if not (xmin < xmax and ymin < ymax):
-        raise ValueError("invalid crop bounds")
+
+    def load_and_crop(current_scale: float, current_ground: float):
+        tris, info = load_triangles(collider, current_scale, current_ground)
+        floor_vertices = [v for tri in tris for v in tri if floor_band[0] <= v[2] <= floor_band[1]]
+        if len(floor_vertices) < 30:
+            floor_vertices = [v for tri in tris for v in tri]
+        if args.crop:
+            bounds = tuple(args.crop)
+            source = "manual_cli_crop"
+        else:
+            xs = [v[0] for v in floor_vertices]
+            ys = [v[1] for v in floor_vertices]
+            bounds = (quantile(xs, 0.01), quantile(xs, 0.99), quantile(ys, 0.01), quantile(ys, 0.99))
+            source = "collider_floor_vertex_q01_q99"
+        if not (bounds[0] < bounds[1] and bounds[2] < bounds[3]):
+            raise ValueError("invalid crop bounds")
+        return tris, info, bounds, source
+
+    triangles, mesh_info, (xmin, xmax, ymin, ymax), crop_source = load_and_crop(scale, ground_offset)
+
+    # Scale calibration loop: segment inside the current crop, let the furniture
+    # heights recommend a scale, recompute the crop in that frame, repeat until
+    # the recommendation is inside the deadband.  Everything downstream then
+    # shares one frame: grid, semantics, calibration.json and grid_meta.
+    semantics = None
+    calibration_iterations = []
+    if not args.no_semantic_targets:
+        for iteration in range(args.calibration_iterations + 1):
+            semantics = ensure_semantics(Path(args.semantics), collider, scale, ground_offset, (xmin, xmax, ymin, ymax), not args.no_auto_segment)
+            calibration = (semantics or {}).get("calibration") or {}
+            calibration_iterations.append({
+                "iteration": iteration,
+                "scale": scale,
+                "ground_offset": ground_offset,
+                "factor": calibration.get("factor"),
+                "table_height_m": (calibration.get("measured") or {}).get("table_height_above_floor_m"),
+                "seat_height_m": (calibration.get("measured") or {}).get("seat_height_above_floor_m"),
+            })
+            if not calibration.get("applied") or args.ignore_calibration or iteration == args.calibration_iterations:
+                break
+            scale, ground_offset = float(calibration["scale"]), float(calibration["ground_offset"])
+            triangles, mesh_info, (xmin, xmax, ymin, ymax), crop_source = load_and_crop(scale, ground_offset)
+        if semantics:
+            transform_info["source"] = os.path.relpath(args.semantics) + " calibration loop"
+            transform_info["calibration"] = {
+                "iterations": calibration_iterations,
+                "converged": not ((semantics.get("calibration") or {}).get("applied")),
+                "measured": (semantics.get("calibration") or {}).get("measured"),
+                "reference": (semantics.get("calibration") or {}).get("reference"),
+                "consistent": (semantics.get("calibration") or {}).get("consistent"),
+                "robot_check": (semantics.get("calibration") or {}).get("robot_check"),
+                "floor": semantics.get("floor"),
+            }
 
     cell = args.cell_size
     cols = max(3, int(math.ceil((xmax - xmin) / cell)))
@@ -578,12 +667,9 @@ def main() -> None:
     rows, cols = len(occupancy), len(occupancy[0])
     component_local = [(r - r0, c - c0) for r, c in component]
 
-    semantics = None
     semantic_targets: dict[str, dict] = {}
     demo_table = None
     footprint_cells_closed = 0
-    if not args.no_semantic_targets:
-        semantics = ensure_semantics(Path(args.semantics), collider, scale, ground_offset, (xmin, xmax, ymin, ymax), not args.no_auto_segment)
     if semantics and semantics.get("tables"):
         # Close any free cell whose centre lies inside a detected table footprint.
         # Rasterised obstacles normally cover tables already; this catches thin
@@ -646,6 +732,10 @@ def main() -> None:
             "formula": "raw (x,y,z) -> (s*x, s*z, ground_offset - s*y)",
             "scale": scale,
             "ground_offset": ground_offset,
+            "scale_source": transform_info["source"],
+            "world_metadata_scale": transform_info["base_scale"],
+            "world_metadata_ground_offset": transform_info["base_ground_offset"],
+            "calibration": transform_info["calibration"],
         },
         "extraction": {
             "mode": extraction_mode,
@@ -715,6 +805,7 @@ def main() -> None:
         "mode": extraction_mode,
         "grid": [rows, cols],
         "cell_size_m": round(cell, 4),
+        "transform": {"scale": scale, "ground_offset": ground_offset, "source": transform_info["source"]},
         "free_cells": meta["stats"]["free_cells"],
         "start": meta["start"],
         "target": meta["targets"][args.demo_target],
