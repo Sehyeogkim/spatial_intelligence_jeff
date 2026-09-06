@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "presentation": {
+    "id": "1kE_G6sTE-NkUPYuiLjEk0cmAovKXlrj9eelm9cN43P4",
+    "title": "제목 없는 프레젠테이션",
+    "revisionId": "iikfBbx7nQsRwA",
+    "slideCount": 6
+  },
+  "snapshotSha256": "519649f9b02fd16922e8c7f25b21bc0cb841b144625bc01471032a448d9de9f6",
+  "summary": {
+    "totalIssues": 1,
+    "reportedIssues": 1,
+    "truncated": false,
+    "bySeverity": {
+      "warning": 1
+    },
+    "byCode": {
+      "EMPTY_TEXT_PLACEHOLDER": 1
+    }
+  },
+  "issues": [
+    {
+      "id": "EMPTY_TEXT_PLACEHOLDER:g3fa304c849d_0_5:g3fa304c849d_0_7:shape:all",
+      "code": "EMPTY_TEXT_PLACEHOLDER",
+      "severity": "warning",
+      "slideId": "g3fa304c849d_0_5",
+      "slideIndex": 1,
+      "objectId": "g3fa304c849d_0_7",
+      "surface": "shape",
+      "message": "An empty SUBTITLE placeholder remains on the slide.",
+      "remediation": "Populate it or delete it when the selected exemplar does not need that slot."
+    }
+  ]
+}

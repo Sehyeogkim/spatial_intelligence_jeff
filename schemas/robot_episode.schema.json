@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fdot.dev/schemas/world2work-navigation-jsonl-v1.json",
+  "title": "World2Work Nova Carter navigation JSONL record",
+  "description": "Each line is exactly one episode_start, step, or outcome record.",
+  "oneOf": [
+    { "$ref": "#/$defs/episodeStart" },
+    { "$ref": "#/$defs/step" },
+    { "$ref": "#/$defs/outcome" }
+  ],
+  "$defs": {
+    "number3": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "items": false
+    },
+    "quaternionXyzw": {
+      "type": "array",
+      "prefixItems": [
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" },
+        { "type": "number" }
+      ],
+      "items": false
+    },
+    "cell": {
+      "oneOf": [
+        {
+          "type": "array",
+          "prefixItems": [{ "type": "integer" }, { "type": "integer" }],
+          "items": false
+        },
+        { "type": "null" }
+      ]
+    },
+    "pose": {
+      "type": "object",
+      "required": ["position_xyz_m", "orientation_xyzw"],
+      "properties": {
+        "position_xyz_m": { "$ref": "#/$defs/number3" },
+        "orientation_xyzw": { "$ref": "#/$defs/quaternionXyzw" }
+      },
+      "additionalProperties": false
+    },
+    "episodeStart": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "schema_version",
+        "episode_id",
+        "task_id",
+        "instruction",
+        "target_id",
+        "environment",
+        "robot",
+        "route"
+      ],
+      "properties": {
+        "record_type": { "const": "episode_start" },
+        "schema_version": { "const": "world2work.robot-episode-jsonl.v1" },
+        "episode_id": { "type": "string", "minLength": 1 },
+        "task_id": { "type": "string", "minLength": 1 },
+        "instruction": { "type": "string", "minLength": 1 },
+        "target_id": { "type": "string", "minLength": 1 },
+        "environment": {
+          "type": "object",
+          "required": ["world_id", "world_provider", "physics_surface", "metric_scale_factor", "ground_plane_offset_m"],
+          "properties": {
+            "world_id": { "type": "string" },
+            "world_provider": { "type": "string" },
+            "physics_surface": { "type": "string" },
+            "metric_scale_factor": { "type": "number", "exclusiveMinimum": 0 },
+            "ground_plane_offset_m": { "type": "number" },
+            "marble_collision_enabled": { "type": "boolean" },
+            "proxy_collision_enabled": { "type": "boolean" },
+            "marble_source": { "enum": ["segmented", "fused"] },
+            "semantic_scene": {
+              "type": "object",
+              "description": "Summary of scripts/segment_marble_collider.py output (semantics.json) when the segmented Marble scene is available.",
+              "properties": {
+                "source": { "type": "string" },
+                "schema_version": { "type": ["string", "null"] },
+                "table_count": { "type": "integer", "minimum": 0 },
+                "seat_count": { "type": "integer", "minimum": 0 },
+                "class_triangles": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } },
+                "target_instance": { "type": ["string", "null"] },
+                "target_selection": { "type": ["string", "null"] },
+                "target_approach_gap_m": { "type": ["number", "null"] },
+                "target_table_pose_xyz_m": {
+                  "type": ["array", "null"],
+                  "prefixItems": [{ "type": "number" }, { "type": "number" }, { "type": "number" }],
+                  "items": false
+                },
+                "target_table_height_m": { "type": ["number", "null"] }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        },
+        "robot": {
+          "type": "object",
+          "required": ["name", "mode", "wheel_radius_m", "wheel_base_m"],
+          "properties": {
+            "name": { "type": "string" },
+            "mode": { "const": "mobile_base" },
+            "asset_usd": { "type": ["string", "null"] },
+            "wheel_dof_names": {
+              "type": "array",
+              "prefixItems": [{ "type": "string" }, { "type": "string" }],
+              "items": false
+            },
+            "wheel_radius_m": { "type": "number", "exclusiveMinimum": 0 },
+            "wheel_base_m": { "type": "number", "exclusiveMinimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "route": {
+          "type": "object",
+          "required": ["source", "waypoint_count", "start_xy_m", "target_xy_m"],
+          "properties": {
+            "source": { "type": "string" },
+            "waypoint_count": { "type": "integer", "minimum": 2 },
+            "start_xy_m": {
+              "type": "array",
+              "prefixItems": [{ "type": "number" }, { "type": "number" }],
+              "items": false
+            },
+            "target_xy_m": {
+              "type": "array",
+              "prefixItems": [{ "type": "number" }, { "type": "number" }],
+              "items": false
+            },
+            "path_length_m": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "dry_run": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "episode_id",
+        "step_index",
+        "t",
+        "phase",
+        "base_pose",
+        "base_twist",
+        "wheel_velocity_radps",
+        "cmd_vel",
+        "cup_pose",
+        "target",
+        "policy_cell",
+        "reward",
+        "done"
+      ],
+      "properties": {
+        "record_type": { "const": "step" },
+        "episode_id": { "type": "string" },
+        "step_index": { "type": "integer", "minimum": 0 },
+        "t": { "type": "number", "minimum": 0 },
+        "phase": { "enum": ["NAVIGATE", "ARRIVE", "VERIFY", "DONE", "TIMEOUT", "STALLED"] },
+        "base_pose": { "$ref": "#/$defs/pose" },
+        "base_twist": {
+          "type": "object",
+          "required": ["linear_xyz_mps", "angular_xyz_radps"],
+          "properties": {
+            "linear_xyz_mps": { "$ref": "#/$defs/number3" },
+            "angular_xyz_radps": { "$ref": "#/$defs/number3" }
+          },
+          "additionalProperties": false
+        },
+        "wheel_velocity_radps": {
+          "type": "object",
+          "required": ["left", "right"],
+          "properties": {
+            "left": { "type": "number" },
+            "right": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "cmd_vel": {
+          "type": "object",
+          "required": ["linear_x_mps", "angular_z_radps"],
+          "properties": {
+            "linear_x_mps": { "type": "number" },
+            "angular_z_radps": { "type": "number" }
+          },
+          "additionalProperties": false
+        },
+        "cup_pose": { "$ref": "#/$defs/pose" },
+        "target": {
+          "type": "object",
+          "required": ["id", "pose_xyz_m", "xy_error_m"],
+          "properties": {
+            "id": { "type": "string" },
+            "pose_xyz_m": { "$ref": "#/$defs/number3" },
+            "xy_error_m": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        },
+        "policy_cell": { "$ref": "#/$defs/cell" },
+        "route_waypoint_index": { "type": "integer", "minimum": 0 },
+        "collision": { "type": ["boolean", "null"] },
+        "collision_detection": { "enum": ["not_instrumented", "proxy_contact", "marble_contact"] },
+        "reward": { "type": "number" },
+        "done": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "outcome": {
+      "type": "object",
+      "required": [
+        "record_type",
+        "episode_id",
+        "success",
+        "reason",
+        "elapsed_s",
+        "xy_error_m",
+        "logged_steps",
+        "route_waypoints_reached",
+        "route_waypoint_count",
+        "total_reward",
+        "actual_distance_m",
+        "shortest_distance_m",
+        "path_efficiency",
+        "collisions"
+      ],
+      "properties": {
+        "record_type": { "const": "outcome" },
+        "episode_id": { "type": "string" },
+        "success": { "type": "boolean" },
+        "reason": { "enum": ["target_reached", "timeout", "stalled", "simulation_error"] },
+        "elapsed_s": { "type": "number", "minimum": 0 },
+        "xy_error_m": { "type": "number", "minimum": 0 },
+        "logged_steps": { "type": "integer", "minimum": 0 },
+        "route_waypoints_reached": { "type": "integer", "minimum": 0 },
+        "route_waypoint_count": { "type": "integer", "minimum": 2 },
+        "total_reward": { "type": "number" },
+        "actual_distance_m": { "type": "number", "minimum": 0 },
+        "shortest_distance_m": { "type": "number", "minimum": 0 },
+        "path_efficiency": { "type": "number", "minimum": 0, "maximum": 1 },
+        "collisions": { "type": ["integer", "null"], "minimum": 0 },
+        "dry_run": { "type": "boolean" },
+        "output_jsonl": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

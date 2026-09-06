@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="World2Work converts a World Labs Marble café into a tabular navigation training environment and replays a Nova Carter coffee-delivery episode."
+    />
+    <title>World2Work · Marble to Robot Experience</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <a class="brand-lockup" href="#" aria-label="World2Work home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>
+            <strong>World2Work</strong>
+            <small>MARBLE → POLICY → EXPERIENCE</small>
+          </span>
+        </a>
+
+        <div class="header-pipeline" aria-label="Evaluation pipeline">
+          <span><b>01</b> Data Generation</span><i></i>
+          <span class="is-active"><b>02</b> Training</span><i></i>
+          <span><b>03</b> Held-out Test</span>
+        </div>
+
+        <div class="header-status">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="artifactStatus">LOADING ARTIFACTS</span>
+          <span class="divider" aria-hidden="true"></span>
+          <time id="clock">00:00:00</time>
+        </div>
+      </header>
+
+      <main>
+        <section class="intro-row">
+          <div>
+            <p class="eyebrow">SITE-CONDITIONED ROBOT LEARNING</p>
+            <h1>Your space becomes<br /><em>robot experience.</em></h1>
+          </div>
+          <p class="intro-copy">
+            One café photo becomes a navigable Marble world. A high-level policy learns on its derived grid,
+            then a representative trained Carter rollout delivers coffee to <strong>table_7</strong>.
+          </p>
+        </section>
+
+        <section class="source-strip" aria-label="World generation inputs">
+          <figure class="source-card">
+            <img
+              id="sourcePhoto"
+              src="../artifacts/corgi-cafe/source-google-maps.jpg"
+              alt="Original café reference photograph"
+            />
+            <figcaption>
+              <span><b>01</b> USER CAPTURE</span>
+              <strong>Source photo</strong>
+            </figcaption>
+          </figure>
+
+          <div class="source-arrow" aria-hidden="true">
+            <span>WORLD LABS</span>
+            <i></i>
+          </div>
+
+          <figure class="source-card source-card-wide">
+            <img
+              id="marblePano"
+              src="../artifacts/corgi-cafe/pano.png"
+              alt="Panorama reconstructed by World Labs Marble"
+            />
+            <figcaption>
+              <span><b>02</b> MARBLE OUTPUT</span>
+              <strong>Generated world panorama</strong>
+            </figcaption>
+          </figure>
+
+          <div class="source-meta">
+            <span class="meta-kicker">WORLD ARTIFACT</span>
+            <strong>Corgi Café · San Francisco</strong>
+            <dl>
+              <div><dt>Geometry</dt><dd>fused static mesh</dd></div>
+              <div><dt>Scale</dt><dd>2.0523× metric</dd></div>
+              <div><dt>Target</dt><dd>table_7</dd></div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="workspace">
+          <div class="visual-column">
+            <article class="panel route-panel">
+              <header class="panel-header">
+                <div class="panel-title">
+                  <span class="panel-index">03</span>
+                  <div>
+                    <p class="eyebrow">MARBLE-DERIVED LAYOUT</p>
+                    <h2>Navigation policy replay</h2>
+                  </div>
+                </div>
+                <div class="panel-tools">
+                  <span class="status-pill" id="gridSourcePill"><i></i> checking grid</span>
+                  <button class="icon-button" id="replayButton" type="button" title="Replay episode">↻</button>
+                </div>
+              </header>
+
+              <div class="route-stage" id="routeStage">
+                <canvas id="navCanvas" aria-label="Occupancy grid, learned route, and animated Nova Carter"></canvas>
+
+                <div class="stage-hud top-left">
+                  <span id="hudPhaseDot"></span>
+                  <div>
+                    <small>EPISODE STATE</small>
+                    <strong id="hudPhase">READY</strong>
+                  </div>
+                </div>
+
+                <div class="stage-hud top-right">
+                  <div><small>POLICY CELL</small><strong id="hudCell">—</strong></div>
+                  <div><small>PROGRESS</small><strong id="hudProgress">0%</strong></div>
+                </div>
+
+                <div class="stage-caption">
+                  <span class="truth-chip">KINEMATIC BROWSER REPLAY</span>
+                  <p>Route animation only · not a physics simulation</p>
+                </div>
+
+                <div class="map-legend" aria-label="Map legend">
+                  <span><i class="free"></i>Traversable</span>
+                  <span><i class="wall"></i>Occupied</span>
+                  <span><i class="route"></i>Learned route</span>
+                  <span><i class="target"></i>table_7</span>
+                </div>
+
+                <div class="success-card" id="successCard" aria-live="polite">
+                  <span class="success-check">✓</span>
+                  <div><small>DELIVERY COMPLETE</small><strong>table_7 reached</strong></div>
+                  <b id="successDistance">0.00 m</b>
+                </div>
+              </div>
+
+              <div class="phase-strip" aria-label="Episode phases">
+                <div class="phase is-active" data-phase="load">
+                  <span>01</span><strong>Load world</strong><small>Marble occupancy</small>
+                </div>
+                <div class="phase" data-phase="policy">
+                  <span>02</span><strong>Read policy</strong><small>greedy Q-table</small>
+                </div>
+                <div class="phase" data-phase="navigate">
+                  <span>03</span><strong>Navigate</strong><small>cell waypoints</small>
+                </div>
+                <div class="phase" data-phase="arrive">
+                  <span>04</span><strong>Arrive</strong><small>goal tolerance</small>
+                </div>
+              </div>
+            </article>
+
+            <article class="panel rollout-panel" id="rolloutPanel">
+              <header class="panel-header rollout-header">
+                <div class="panel-title">
+                  <span class="panel-index">04</span>
+                  <div>
+                    <p class="eyebrow">REPRESENTATIVE SIMULATOR RESULT</p>
+                    <h2>Actual Isaac Sim rollout (Nova Carter)</h2>
+                  </div>
+                </div>
+                <span class="status-pill" id="rolloutStatus"><i></i> checking local MP4</span>
+              </header>
+
+              <div class="rollout-media">
+                <video
+                  id="rolloutVideo"
+                  controls
+                  muted
+                  playsinline
+                  preload="metadata"
+                  aria-label="Actual Isaac Sim rollout of Nova Carter delivering coffee to table 7"
+                ></video>
+                <div class="rollout-fallback" id="rolloutFallback" role="status" aria-live="polite">
+                  <span class="rollout-fallback-icon" aria-hidden="true">▶</span>
+                  <div>
+                    <strong id="rolloutFallbackTitle">Checking for Isaac Sim rollout…</strong>
+                    <p id="rolloutFallbackText">Looking for <code>assets/world2work_table7.mp4</code>.</p>
+                  </div>
+                  <button class="quiet-button" id="retryRolloutButton" type="button">Retry local MP4</button>
+                </div>
+                <div class="rollout-label">
+                  <span>ISAAC SIM</span>
+                  <strong>NOVA CARTER · TABLE_7</strong>
+                </div>
+              </div>
+
+              <div class="rollout-provenance">
+                <span><i class="sim-dot"></i><b>Actual simulator footage</b></span>
+                <span class="provenance-divider"></span>
+                <p>Separate from the <b>kinematic browser replay</b> above.</p>
+                <code>../assets/world2work_table7.mp4</code>
+              </div>
+            </article>
+
+            <div class="analytics-grid">
+              <article class="panel chart-card">
+                <header class="mini-header">
+                  <div>
+                    <p class="eyebrow">TABULAR Q-LEARNING HIGH-LEVEL POLICY</p>
+                    <h3>Learning curve</h3>
+                  </div>
+                  <span class="mini-status" id="curveStatus">loading</span>
+                </header>
+                <div class="chart-wrap">
+                  <canvas id="curveCanvas" aria-label="Q-learning training reward and success-rate curve"></canvas>
+                  <div class="chart-legend"><span class="reward-key">Mean reward</span><span class="success-key">Success rate</span></div>
+                </div>
+              </article>
+
+              <article class="panel chart-card">
+                <header class="mini-header">
+                  <div>
+                    <p class="eyebrow">LEARNED STATE VALUES</p>
+                    <h3>Value heatmap</h3>
+                  </div>
+                  <span class="mini-status" id="heatmapStatus">loading</span>
+                </header>
+                <div class="chart-wrap heatmap-wrap">
+                  <canvas id="heatmapCanvas" aria-label="Q-learning value heatmap"></canvas>
+                  <div class="heat-scale"><span>low</span><i></i><span>goal</span></div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          <aside class="control-panel panel" aria-label="Policy and episode details">
+            <section class="truth-card">
+              <span class="truth-icon">i</span>
+              <div>
+                <strong>What is actually learned?</strong>
+                <p>
+                  A <b>tabular Q-learning high-level policy</b> selects grid moves on the
+                  Marble-derived layout. Isaac Sim provides a representative trained Carter rollout;
+                  this browser motion is a <b>kinematic replay</b> of that route.
+                </p>
+              </div>
+            </section>
+
+            <section class="metrics-grid primary-metrics" aria-label="Held-out evaluation metrics">
+              <div><span>Success Rate</span><strong id="successMetric">—</strong><small>held-out test</small></div>
+              <div><span>Collision Rate</span><strong id="collisionMetric">—</strong><small>blocked actions / actions</small></div>
+              <div><span>Path Efficiency</span><strong id="efficiencyMetric">—</strong><small>shortest / actual</small></div>
+            </section>
+
+            <section class="comparison-section" aria-label="Untrained versus trained comparison">
+              <header class="mini-header">
+                <div><p class="eyebrow">HELD-OUT TEST</p><h3>Untrained vs trained</h3></div>
+                <span class="mini-status" id="evaluationStatus">evaluation pending</span>
+              </header>
+              <div class="comparison-chart">
+                <div class="compare-row">
+                  <span>Untrained</span>
+                  <div class="compare-track"><i id="untrainedBar"></i></div>
+                  <strong id="untrainedScore">—</strong>
+                </div>
+                <div class="compare-row trained">
+                  <span>Trained</span>
+                  <div class="compare-track"><i id="trainedBar"></i></div>
+                  <strong id="trainedScore">—</strong>
+                </div>
+              </div>
+              <p class="evaluation-note" id="evaluationNote">Waiting for evaluation_summary.json; no placeholder scores are shown.</p>
+            </section>
+
+            <section class="control-section">
+              <div class="section-heading">
+                <div><p class="eyebrow">DELIVERY TASK</p><h2>Run one episode</h2></div>
+                <span class="section-number">04</span>
+              </div>
+              <label class="instruction-field" for="instructionInput">
+                <span>›</span>
+                <input
+                  id="instructionInput"
+                  type="text"
+                  value="Deliver the coffee to table_7."
+                  autocomplete="off"
+                  spellcheck="false"
+                  readonly
+                />
+              </label>
+              <div class="target-lock"><span>GOAL</span><strong><i></i> table_7</strong><small>locked for demo</small></div>
+              <div class="run-controls">
+                <button class="run-button" id="runButton" type="button">
+                  <span class="play-icon" aria-hidden="true"></span>
+                  <span><small>EXECUTE POLICY</small>Run delivery</span>
+                </button>
+                <button class="reset-button" id="resetButton" type="button"><span>↺</span>Reset</button>
+              </div>
+            </section>
+
+            <section class="episode-section">
+              <header class="mini-header">
+                <div><p class="eyebrow">EPISODE DATA</p><h3>Observable trace</h3></div>
+                <span class="event-count" id="eventCount">0 frames</span>
+              </header>
+
+              <dl class="field-list">
+                <div><dt>episode_id</dt><dd id="fieldEpisode">pending</dd></div>
+                <div><dt>instruction</dt><dd>Deliver coffee to table_7</dd></div>
+                <div><dt>base_pose</dt><dd id="fieldPose">[—, —, —]</dd></div>
+                <div><dt>wheel_velocity</dt><dd id="fieldWheels">[0.00, 0.00]</dd></div>
+                <div><dt>policy_cell</dt><dd id="fieldCell">[—, —]</dd></div>
+                <div><dt>command</dt><dd id="fieldCommand">[0.00, 0.00]</dd></div>
+                <div><dt>payload</dt><dd>coffee · tray-fixed</dd></div>
+                <div><dt>done</dt><dd id="fieldDone">false</dd></div>
+              </dl>
+
+              <div class="event-log" id="eventLog" role="log" aria-live="polite">
+                <p class="empty-log">Run delivery to stream navigation frames.</p>
+              </div>
+
+              <button class="export-button" id="exportButton" type="button" disabled>
+                <span>↓</span> Export episode JSON
+              </button>
+            </section>
+          </aside>
+        </section>
+      </main>
+
+      <footer>
+        <span>WORLD LABS MARBLE</span><i></i>
+        <span>DATA GENERATION</span><i></i>
+        <span>POLICY TRAINING</span><i></i>
+        <span>HELD-OUT TEST</span>
+        <small>Static local demo · no Convex dependency</small>
+      </footer>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    </div>
+    <script src="./app.js"></script>
+  </body>
+</html>

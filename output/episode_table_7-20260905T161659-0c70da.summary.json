@@ -1,0 +1,62 @@
+{
+  "episode": {
+    "record_type": "episode_start",
+    "schema_version": "world2work.robot-episode-jsonl.v1",
+    "episode_id": "table_7-20260905T161659-0c70da",
+    "task_id": "corgi_cafe_deliver_coffee_v1",
+    "instruction": "Deliver the coffee to table 7.",
+    "target_id": "table_7",
+    "environment": {
+      "world_id": "corgi-cafe",
+      "world_provider": "World Labs Marble",
+      "physics_surface": "flat_ground_plus_optional_collision_proxies",
+      "metric_scale_factor": 2.052333354949951,
+      "ground_plane_offset_m": 1.671196460723877,
+      "marble_collision_enabled": false,
+      "proxy_collision_enabled": false
+    },
+    "robot": {
+      "name": "NVIDIA Nova Carter",
+      "mode": "mobile_base",
+      "asset_usd": null,
+      "wheel_dof_names": [
+        "joint_wheel_left",
+        "joint_wheel_right"
+      ],
+      "wheel_radius_m": 0.14,
+      "wheel_base_m": 0.413
+    },
+    "route": {
+      "source": "/Users/jeff/project/spatial_intelligence_jeff/artifacts/corgi-cafe/nav/route_table_7.json",
+      "waypoint_count": 25,
+      "start_xy_m": [
+        5.57645,
+        -0.39966
+      ],
+      "target_xy_m": [
+        4.52645,
+        6.95034
+      ],
+      "path_length_m": 8.4
+    },
+    "dry_run": true
+  },
+  "outcome": {
+    "record_type": "outcome",
+    "episode_id": "table_7-20260905T161659-0c70da",
+    "success": true,
+    "reason": "target_reached",
+    "elapsed_s": 34.9,
+    "xy_error_m": 0.29748813336113766,
+    "logged_steps": 350,
+    "route_waypoints_reached": 25,
+    "route_waypoint_count": 25,
+    "total_reward": 20.06426613819549,
+    "actual_distance_m": 7.5301911962167445,
+    "shortest_distance_m": 8.399999999999999,
+    "path_efficiency": 1.0,
+    "collisions": 0,
+    "dry_run": true,
+    "output_jsonl": "/Users/jeff/project/spatial_intelligence_jeff/output/episode_table_7-20260905T161659-0c70da.jsonl"
+  }
+}

@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 1600px; height: 900px; overflow: hidden; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    color: #f2fbff;
+    background: #020712;
+  }
+  .slide {
+    position: relative;
+    width: 1600px;
+    height: 900px;
+    overflow: hidden;
+    background:
+      linear-gradient(90deg, rgba(2,7,18,.97) 0%, rgba(2,7,18,.87) 48%, rgba(2,7,18,.76) 100%),
+      url('file:///Users/jeff/project/spatial_intelligence_jeff/assets/pier-ai-cafe2bot-hero.png') center/cover no-repeat;
+  }
+  .slide::before {
+    content: "";
+    position: absolute; inset: 0;
+    opacity: .22;
+    background-image:
+      linear-gradient(rgba(27,196,255,.12) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(27,196,255,.12) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: linear-gradient(90deg, transparent 0%, #000 58%, #000 100%);
+  }
+  .kicker {
+    position: absolute; left: 28px; top: 24px;
+    font-size: 26px; line-height: 1;
+    font-weight: 800; letter-spacing: .3px;
+    color: #fff;
+  }
+  .title {
+    position: absolute; left: 100px; right: 100px; top: 62px;
+    margin: 0;
+    text-align: center;
+    font-size: 52px; line-height: 1.08;
+    font-weight: 900; letter-spacing: -.8px;
+  }
+  .title .cyan { color: #20cdfc; }
+  .title .green { color: #62efaa; }
+  .subtitle {
+    position: absolute; left: 200px; right: 200px; top: 126px;
+    text-align: center;
+    color: #bfd7e4;
+    font-size: 20px; letter-spacing: .2px;
+  }
+  .flow {
+    position: absolute; left: 45px; right: 45px; top: 184px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 18px;
+  }
+  .card {
+    position: relative;
+    height: 438px;
+    border: 1px solid rgba(74,214,255,.48);
+    border-radius: 20px;
+    overflow: hidden;
+    background: linear-gradient(180deg, rgba(8,21,37,.94), rgba(3,12,25,.96));
+    box-shadow: inset 0 0 26px rgba(14,185,255,.08), 0 0 18px rgba(10,116,178,.12);
+  }
+  .card:nth-child(5) { border-color: rgba(98,239,170,.64); }
+  .step {
+    position: absolute; z-index: 5; left: 14px; top: 14px;
+    width: 38px; height: 38px; border-radius: 50%;
+    display: grid; place-items: center;
+    font-weight: 900; font-size: 19px;
+    background: #102d43; border: 1.5px solid #20cdfc;
+    color: #9debff; box-shadow: 0 0 18px rgba(32,205,252,.28);
+  }
+  .card:nth-child(5) .step { border-color: #62efaa; color: #89ffc1; }
+  .visual { position: relative; width: 100%; height: 196px; overflow: hidden; background: #071320; }
+  .visual.photo { background: url('file:///Users/jeff/project/spatial_intelligence_jeff/artifacts/corgi-cafe/source-google-maps.jpg') center/cover no-repeat; }
+  .visual.world { background: url('file:///Users/jeff/project/spatial_intelligence_jeff/artifacts/corgi-cafe/pano.png') center/cover no-repeat; }
+  .visual.world::after {
+    content: ""; position: absolute; inset: 0;
+    background:
+      linear-gradient(rgba(0,174,255,.08), rgba(0,174,255,.25)),
+      repeating-linear-gradient(0deg, transparent 0 27px, rgba(39,212,255,.36) 28px),
+      repeating-linear-gradient(90deg, transparent 0 37px, rgba(39,212,255,.32) 38px);
+    mix-blend-mode: screen;
+  }
+  .visual.delivery { background: url('file:///Users/jeff/project/spatial_intelligence_jeff/assets/pier-ai-cafe2bot-hero.png') 65% 58%/cover no-repeat; }
+  .visual::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.05), rgba(1,8,17,.62)); }
+  .sim {
+    position: absolute; inset: 0;
+    background:
+      linear-gradient(rgba(28,204,255,.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(28,204,255,.15) 1px, transparent 1px),
+      radial-gradient(circle at 25% 70%, rgba(32,205,252,.28), transparent 32%);
+    background-size: 24px 24px, 24px 24px, auto;
+  }
+  .obstacle { position: absolute; border: 2px solid #28799b; background: rgba(25,99,128,.22); box-shadow: 0 0 12px rgba(31,193,255,.14); }
+  .o1 { left: 54px; top: 45px; width: 58px; height: 30px; }
+  .o2 { right: 46px; top: 68px; width: 54px; height: 54px; border-radius: 50%; }
+  .o3 { left: 100px; bottom: 20px; width: 82px; height: 24px; }
+  .route { position: absolute; left: 48px; top: 132px; width: 148px; height: 0; border-top: 4px dashed #5ef1aa; transform: rotate(-22deg); filter: drop-shadow(0 0 6px #28dc8c); }
+  .marker { position: absolute; width: 23px; height: 23px; border-radius: 50%; border: 4px solid; background: #071320; }
+  .start { left: 35px; bottom: 25px; border-color: #20cdfc; }
+  .goal { right: 34px; top: 42px; border-color: #62efaa; }
+  .data-viz { position: absolute; inset: 0; padding: 48px 24px 20px; }
+  .stream { height: 14px; margin: 12px 0; border-radius: 10px; background: linear-gradient(90deg, rgba(32,205,252,.14), rgba(32,205,252,.85), rgba(98,239,170,.75)); box-shadow: 0 0 11px rgba(32,205,252,.25); }
+  .stream:nth-child(2) { width: 86%; }
+  .stream:nth-child(3) { width: 67%; }
+  .stream:nth-child(4) { width: 94%; }
+  .stream:nth-child(5) { width: 76%; }
+  .card-body { padding: 17px 18px 16px; }
+  .eyebrow { color: #20cdfc; font-weight: 800; font-size: 14px; letter-spacing: 1.3px; }
+  .card:nth-child(5) .eyebrow { color: #62efaa; }
+  .card h3 { margin: 8px 0 10px; font-size: 23px; line-height: 1.08; letter-spacing: -.2px; }
+  .card p { margin: 0; color: #bad0dc; font-size: 16px; line-height: 1.38; }
+  .tech {
+    position: absolute; left: 18px; right: 18px; bottom: 17px;
+    border-top: 1px solid rgba(54,199,244,.25); padding-top: 11px;
+    color: #7697a8; font-size: 13px; font-weight: 700; letter-spacing: .6px;
+  }
+  .arrow {
+    position: absolute; z-index: 8; top: 287px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #061321; border: 1px solid #28cfff;
+    display: grid; place-items: center; color: #77e7ff;
+    font-size: 21px; font-weight: 700; box-shadow: 0 0 14px rgba(32,205,252,.4);
+  }
+  .a1 { left: 326px; } .a2 { left: 632px; } .a3 { left: 938px; } .a4 { left: 1244px; }
+  .output {
+    position: absolute; left: 72px; right: 72px; bottom: 48px; height: 174px;
+    border: 1.5px solid #62efaa; border-radius: 18px;
+    background: linear-gradient(90deg, rgba(3,16,27,.97), rgba(4,27,31,.95));
+    box-shadow: 0 0 22px rgba(65,233,164,.13), inset 0 0 28px rgba(65,233,164,.04);
+    padding: 20px 28px;
+  }
+  .output-title { color: #71f4ad; font-weight: 900; font-size: 22px; letter-spacing: .4px; }
+  .output-sub { float: right; color: #9bb6c3; font-size: 16px; font-weight: 500; padding-top: 4px; }
+  .pills { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+  .pill {
+    padding: 10px 16px; border-radius: 999px;
+    border: 1px solid rgba(80,222,255,.44);
+    background: rgba(14,56,75,.42); color: #dff9ff;
+    font-size: 15px; font-weight: 800; letter-spacing: .25px;
+  }
+  .pill.action, .pill.success { border-color: rgba(98,239,170,.68); background: rgba(25,95,70,.45); color: #b8ffd4; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="kicker">4. DEMO SCENARIO</div>
+  <h1 class="title"><span class="cyan">ONE CAFÉ PHOTO</span> BECOMES <span class="green">ROBOT TRAINING DATA</span></h1>
+  <div class="subtitle">Corgi Coffee → site-specific World Model → simulated delivery episodes</div>
+
+  <div class="flow">
+    <section class="card">
+      <div class="step">1</div><div class="visual photo"></div>
+      <div class="card-body"><div class="eyebrow">PHOTO INPUT</div><h3>Corgi Coffee</h3><p>Start with one real image of the customer’s café.</p></div>
+      <div class="tech">CUSTOMER-SUPPLIED VENUE</div>
+    </section>
+    <section class="card">
+      <div class="step">2</div><div class="visual world"></div>
+      <div class="card-body"><div class="eyebrow">WORLD MODEL</div><h3>Generate the 3D Café</h3><p>Marble reconstructs a spatial world from the photo.</p></div>
+      <div class="tech">WORLD LABS MARBLE</div>
+    </section>
+    <section class="card">
+      <div class="step">3</div><div class="visual"><div class="sim"><i class="obstacle o1"></i><i class="obstacle o2"></i><i class="obstacle o3"></i><i class="route"></i><i class="marker start"></i><i class="marker goal"></i></div></div>
+      <div class="card-body"><div class="eyebrow">SIM SETUP</div><h3>Prepare Isaac Sim</h3><p>Add the floor, colliders, robot start pose and target table.</p></div>
+      <div class="tech">PHYSICS + TASK MARKERS</div>
+    </section>
+    <section class="card">
+      <div class="step">4</div><div class="visual delivery"></div>
+      <div class="card-body"><div class="eyebrow">DELIVERY TASK</div><h3>Counter → Table</h3><p>A wheeled robot carries one coffee without collision.</p></div>
+      <div class="tech">SITE-SPECIFIC NAVIGATION</div>
+    </section>
+    <section class="card">
+      <div class="step">5</div><div class="visual"><div class="data-viz"><div class="stream"></div><div class="stream"></div><div class="stream"></div><div class="stream"></div><div class="stream"></div></div></div>
+      <div class="card-body"><div class="eyebrow">DATA CAPTURE</div><h3>Record Every Episode</h3><p>Save observations, robot states, actions and outcomes for training.</p></div>
+      <div class="tech">REPLAYABLE TRAINING DATA</div>
+    </section>
+  </div>
+  <div class="arrow a1">›</div><div class="arrow a2">›</div><div class="arrow a3">›</div><div class="arrow a4">›</div>
+
+  <div class="output">
+    <span class="output-title">SAVED AT EVERY TIMESTEP</span>
+    <span class="output-sub">One episode = observations + robot state + action + outcome</span>
+    <div class="pills">
+      <span class="pill">RGB</span><span class="pill">DEPTH</span><span class="pill">SEGMENTATION</span>
+      <span class="pill">ROBOT POSE</span><span class="pill">VELOCITY</span><span class="pill">WHEEL JOINTS</span>
+      <span class="pill action">ACTION</span><span class="pill">COLLISION</span><span class="pill success">SUCCESS</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,6 @@
+.env
+.env.*
+!.env.example
+artifacts/worldlabs-audit/
+artifacts/corgi-cafe/
+.tools/

@@ -1,0 +1,198 @@
+{
+  "schema_version": "world2work.nav-task.v1",
+  "task_id": "corgi_cafe_deliver_coffee_v1",
+  "environment": {
+    "world_id": "corgi-cafe",
+    "name": "Corgi Cafe, San Francisco",
+    "world_provider": "World Labs Marble",
+    "world_artifact_dir": "artifacts/corgi-cafe",
+    "world_json": "artifacts/corgi-cafe/world.json",
+    "collider_glb": "artifacts/corgi-cafe/collider.glb",
+    "panorama": "artifacts/corgi-cafe/pano.png",
+    "converted_usd": "artifacts/corgi-cafe/nav/collider_isaac.usd",
+    "use_marble_as": "static_visual_context",
+    "physics_surface": "flat_ground_plus_optional_collision_proxies",
+    "marble_collision_enabled_by_default": false,
+    "proxy_collision_enabled_by_default": false,
+    "transform": {
+      "rotation_xyz_degrees": [
+        -90.0,
+        0.0,
+        0.0
+      ],
+      "metric_scale_factor": 2.0523,
+      "ground_plane_offset_m": 1.6712,
+      "visual_z_bias_m": -0.32,
+      "formula": "(x,y,z)_marble -> (s*x, s*z, ground_plane_offset - s*y)"
+    }
+  },
+  "robot": {
+    "name": "NVIDIA Nova Carter",
+    "mode": "mobile_base",
+    "drive": "differential",
+    "asset_candidates": [
+      "/Isaac/Robots/NVIDIA/NovaCarter/nova_carter.usd",
+      "/Isaac/Robots/NVIDIA/Carter/carter_v1.usd"
+    ],
+    "wheel_dof_name_pairs": [
+      [
+        "joint_wheel_left",
+        "joint_wheel_right"
+      ],
+      [
+        "left_wheel_joint",
+        "right_wheel_joint"
+      ],
+      [
+        "left_wheel",
+        "right_wheel"
+      ]
+    ],
+    "wheel_radius_m": 0.14,
+    "wheel_base_m": 0.413,
+    "start_z_m": 0.0,
+    "wheel_velocity_signs": [
+      1.0,
+      1.0
+    ]
+  },
+  "instruction": "Deliver the coffee to table 7.",
+  "target_id": "table_7",
+  "navigation": {
+    "route_dir": "artifacts/corgi-cafe/nav",
+    "route_filename_pattern": "route_{target_id}.json",
+    "grid_meta": "artifacts/corgi-cafe/nav/grid_meta.json",
+    "fallback_start_xy_m": [
+      -1.8,
+      -1.2
+    ],
+    "fallback_start_yaw_rad": 0.0,
+    "lookahead_m": 0.35,
+    "waypoint_radius_m": 0.16,
+    "linear_speed_max_mps": 0.45,
+    "angular_speed_max_radps": 0.9,
+    "heading_kp": 1.8,
+    "slowdown_distance_m": 0.55,
+    "turn_in_place_threshold_rad": 0.7,
+    "minimum_drive_heading_cosine": 0.1,
+    "obstacle_proxies_from_grid_meta": true
+  },
+  "payload": {
+    "attachment": "kinematic_visual_sync",
+    "tray": {
+      "offset_xyz_m": [
+        0.0,
+        0.0,
+        0.72
+      ],
+      "size_xyz_m": [
+        0.54,
+        0.42,
+        0.035
+      ],
+      "color_rgb": [
+        0.96,
+        0.46,
+        0.08
+      ]
+    },
+    "cup": {
+      "offset_xyz_m": [
+        0.0,
+        0.0,
+        0.81
+      ],
+      "radius_m": 0.045,
+      "height_m": 0.13,
+      "color_rgb": [
+        0.96,
+        0.95,
+        0.9
+      ]
+    }
+  },
+  "targets": {
+    "table_2": {
+      "fallback_pose_xyz_m": [
+        1.2,
+        -0.8,
+        0.0
+      ],
+      "marker_radius_m": 0.3
+    },
+    "table_7": {
+      "fallback_pose_xyz_m": [
+        1.7,
+        1.2,
+        0.0
+      ],
+      "marker_radius_m": 0.3
+    }
+  },
+  "success": {
+    "target_radius_m": 0.3,
+    "max_linear_speed_mps": 0.08,
+    "settle_time_s": 0.5,
+    "timeout_s": 60.0,
+    "stall_timeout_s": 5.0,
+    "stall_min_progress_m": 0.03
+  },
+  "reward": {
+    "progress_scale": 2.0,
+    "step_penalty": -0.002,
+    "success_bonus": 10.0,
+    "timeout_penalty": -2.0,
+    "stall_penalty": -3.0
+  },
+  "logging": {
+    "physics_hz": 60,
+    "state_hz": 10,
+    "format": "jsonl",
+    "schema": "schemas/robot_episode.schema.json",
+    "include": [
+      "instruction",
+      "phase",
+      "base_pose",
+      "base_twist",
+      "wheel_velocity",
+      "cmd_vel",
+      "cup_pose",
+      "target",
+      "policy_cell",
+      "reward",
+      "done",
+      "outcome"
+    ]
+  },
+  "video": {
+    "width": 1280,
+    "height": 720,
+    "capture_hz": 10,
+    "playback_fps": 10,
+    "route_margin_m": 1.0,
+    "camera_height_scale": 1.85,
+    "camera_min_height_m": 9.0,
+    "focal_length_mm": 40.0,
+    "camera_mode": "pano_origin",
+    "follow_distance_m": 2.6,
+    "follow_lateral_m": 0.75,
+    "follow_height_m": 1.75,
+    "follow_look_ahead_m": 0.45,
+    "follow_look_at_height_m": 0.48,
+    "camera_position_m": [
+      0.0,
+      0.0,
+      1.671196460723877
+    ],
+    "look_at_z_m": 0.2,
+    "camera_mode_note": "follow gives a readable third-person Carter shot; pano_origin preserves the panorama projection; null selects the route overview",
+    "hide_floor_visual": true,
+    "dome_yaw_deg": 0.0,
+    "dome_yaw_note": "rotate the panorama about Z (degrees) if the café layout does not line up with the route; camera stays at the pano origin",
+    "dome_intensity": 700.0,
+    "dome_exposure": 0.0,
+    "key_intensity": 1200.0,
+    "key_exposure": 0.0,
+    "fill_intensity": 0.0
+  }
+}
